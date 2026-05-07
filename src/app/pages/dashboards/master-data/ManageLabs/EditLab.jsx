@@ -1,0 +1,296 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router";
+import axios from "utils/axios";
+import { toast } from "sonner";
+import { Button, Input, Select } from "components/ui";
+import { Page } from "components/shared/Page";
+import ReactSelect from "react-select";
+
+export default function EditLab() {
+  const navigate = useNavigate();
+  const { id } = useParams(); 
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formData, setFormData] = useState({
+    name: "",
+    users: [],
+    qaapprove: [],
+    ulrgenerate: [],
+    uploadreport: [],
+    envrecord: [],
+    recordEnviornment: "",
+    masters: [],
+    vertical: ""
+  });
+
+  const [userOptions, setUserOptions] = useState([]);
+  const [masterOptions, setMasterOptions] = useState([]); 
+  const [verticalOptions, setVerticalOptions] = useState([]);
+
+  const recordEnvOptions = [
+    { label: "Yes", value: "Yes" },
+    { label: "No", value: "No" }
+  ];
+
+  // Fetch dropdown data + lab data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [userRes, masterRes, verticalRes, labRes] = await Promise.all([
+          axios.get("/hrm/get-users-name"),
+          axios.get("/material/get-master-list"), // ✅ New API for masters
+          axios.get("/master/vertical-list"),
+          axios.get(`/master/get-lab-byid/${id}`) // API for lab details
+        ]);
+
+        const userOptionsFormatted = (userRes.data.data || []).map(u => ({
+          label: u.name,
+          value: u.id
+        }));
+
+        const masterOptionsFormatted = (masterRes.data.data || []).map(m => ({
+          label: m.name,
+          value: m.id
+        }));
+
+        const verticalOptionsFormatted = (verticalRes.data.data || []).map(v => ({
+          label: v.name,
+          value: v.id
+        }));
+
+        const lab = labRes.data.data;
+
+        setUserOptions(userOptionsFormatted);
+        setMasterOptions(masterOptionsFormatted); // ✅ Set master options
+        setVerticalOptions(verticalOptionsFormatted);
+
+        setFormData({
+          name: lab.name || "",
+          users: lab.users ? lab.users.split(",").map(Number) : [],
+          qaapprove: lab.qaapprove ? lab.qaapprove.split(",").map(Number) : [],
+          ulrgenerate: lab.ulrgenerate ? lab.ulrgenerate.split(",").map(Number) : [],
+          uploadreport: lab.uploadreport ? lab.uploadreport.split(",").map(Number) : [],
+          envrecord: lab.envrecord ? lab.envrecord.split(",").map(Number) : [],
+          recordEnviornment: lab.recordEnviornment || "",
+          masters: lab.masters ? lab.masters.split(",").map(Number) : [],
+          vertical: lab.vertical?.toString() || ""
+        });
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast.error("Something went wrong while loading lab data.");
+      }
+    };
+
+    fetchData();
+  }, [id]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleSelectChange = (selectedOptions, name) => {
+    const selectedValues = selectedOptions ? selectedOptions.map((opt) => opt.value) : [];
+    setFormData((prev) => ({ ...prev, [name]: selectedValues }));
+    
+    // Clear error when user makes selection
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Validate required fields
+    if (!formData.name.trim()) {
+      newErrors.name = "This field is required";
+    }
+
+    if (!formData.vertical) {
+      newErrors.vertical = "This field is required";
+    }
+
+    // You can add more validations as needed
+    // if (formData.users.length === 0) {
+    //   newErrors.users = "This field is required";
+    // }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        ...formData,
+        users: formData.users.map(Number),
+        qaapprove: formData.qaapprove.map(Number),
+        ulrgenerate: formData.ulrgenerate.map(Number),
+        uploadreport: formData.uploadreport.map(Number),
+        envrecord: formData.envrecord.map(Number),
+        masters: formData.masters.map(Number),
+        vertical: parseInt(formData.vertical)
+      };
+      console.log("Payload 👉", payload);
+
+      const response = await axios.post(`/master/update-lab/${id}`, payload);
+
+      if (response.data.status === "true") {
+        toast.success("Lab updated successfully ✅");
+        navigate("/dashboards/master-data/manage-labs");
+      } else {
+        toast.error(response.data.message || "Failed to update lab ❌");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong ❌");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Page title="Edit Manage Lab">
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Edit Manage Lab</h2>
+          <Button
+            variant="outline"
+            className="text-white bg-blue-600 hover:bg-blue-700"
+            onClick={() => navigate("/dashboards/master-data/manage-labs")}
+          >
+            Back to List
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Input
+              label="Lab Name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+            />
+            {errors.name && (
+              <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+            )}
+          </div>
+
+          {/* User-related fields using userOptions */}
+          {[
+            { name: "users", label: "Allotted Users" },
+            { name: "qaapprove", label: "QA Approve" },
+            { name: "ulrgenerate", label: "Generate ULR" },
+            { name: "uploadreport", label: "Upload Report" },
+            { name: "envrecord", label: "Environmental Record" }
+          ].map((field) => (
+            <div key={field.name}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+              <ReactSelect
+                isMulti
+                name={field.name}
+                options={userOptions}
+                value={userOptions.filter(opt => formData[field.name].includes(opt.value))}
+                onChange={(selected) => handleSelectChange(selected, field.name)}
+              />
+              {errors[field.name] && (
+                <p className="text-red-500 text-sm mt-1">{errors[field.name]}</p>
+              )}
+            </div>
+          ))}
+
+          {/* ✅ Allotted Master - Now using masterOptions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Allotted Master</label>
+            <ReactSelect
+              isMulti
+              name="masters"
+              options={masterOptions}
+              value={masterOptions.filter(opt => formData.masters.includes(opt.value))}
+              onChange={(selected) => handleSelectChange(selected, "masters")}
+            />
+            {errors.masters && (
+              <p className="text-red-500 text-sm mt-1">{errors.masters}</p>
+            )}
+          </div>
+
+          {/* Record Environmental Condition */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Record Environmental Condition
+            </label>
+            <ReactSelect
+              name="recordEnviornment"
+              options={recordEnvOptions}
+              value={recordEnvOptions.find(opt => opt.value === formData.recordEnviornment) || null}
+              onChange={(selected) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  recordEnviornment: selected ? selected.value : ""
+                }))
+              }
+              isClearable
+              placeholder="Select..."
+            />
+            {errors.recordEnviornment && (
+              <p className="text-red-500 text-sm mt-1">{errors.recordEnviornment}</p>
+            )}
+          </div>
+
+          {/* Vertical Select */}
+          <div>
+            <Select
+              name="vertical"
+              label="Vertical"
+              data={verticalOptions}
+              value={formData.vertical}
+              onChange={handleChange}
+            />
+            {errors.vertical && (
+              <p className="text-red-500 text-sm mt-1">{errors.vertical}</p>
+            )}
+          </div>
+
+          <Button type="submit" color="primary" disabled={loading}>
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 000 8v4a8 8 0 01-8-8z"
+                  ></path>
+                </svg>
+                Updating...
+              </div>
+            ) : (
+              "Update"
+            )}
+          </Button>
+        </form>
+      </div>
+    </Page>
+  );
+}

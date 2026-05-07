@@ -1,0 +1,304 @@
+import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { Button, Input, Card } from "components/ui";
+import { Page } from "components/shared/Page";
+import axios from "utils/axios";
+import { toast } from "sonner";
+import clsx from "clsx";
+
+export default function AddRole() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [errors, setErrors] = useState({});
+
+  const [modules, setModules] = useState([]);
+  const [groupedPermissions, setGroupedPermissions] = useState({});
+
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    selectedPermissions: [], // Array of permission IDs
+  });
+
+  // Fetch Modules and Permissions
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setFetching(true);
+        const [modulesRes, permissionsRes] = await Promise.all([
+          axios.get("rolemanagment/get-module"),
+          axios.get("/roles/view-permissions-list"),
+        ]);
+
+        if (modulesRes.data.status) {
+          setModules(modulesRes.data.data);
+        }
+        if (permissionsRes.data.status) {
+          // Group permissions by module ID
+          const grouped = permissionsRes.data.data.reduce((acc, perm) => {
+            const moduleId = perm.module || perm.module_id;
+            if (!acc[moduleId]) acc[moduleId] = [];
+            acc[moduleId].push(perm);
+            return acc;
+          }, {});
+          setGroupedPermissions(grouped);
+        }
+      } catch (err) {
+        console.error("Error fetching role data:", err);
+        toast.error("Failed to load modules and permissions");
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handlePermissionChange = (permId) => {
+    setFormData((prev) => {
+      const isSelected = prev.selectedPermissions.includes(permId);
+      if (isSelected) {
+        return {
+          ...prev,
+          selectedPermissions: prev.selectedPermissions.filter((id) => id !== permId),
+        };
+      } else {
+        return {
+          ...prev,
+          selectedPermissions: [...prev.selectedPermissions, permId],
+        };
+      }
+    });
+  };
+
+  const handleSelectAllModule = (moduleId, isChecked) => {
+    const modulePerms = groupedPermissions[moduleId] || [];
+    const modulePermIds = modulePerms.map(p => p.id);
+    
+    setFormData((prev) => {
+      if (isChecked) {
+        // Add all from this module that aren't already selected
+        const others = prev.selectedPermissions.filter(id => !modulePermIds.includes(id));
+        return {
+          ...prev,
+          selectedPermissions: [...others, ...modulePermIds],
+        };
+      } else {
+        // Remove all from this module
+        return {
+          ...prev,
+          selectedPermissions: prev.selectedPermissions.filter(id => !modulePermIds.includes(id)),
+        };
+      }
+    });
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = "Role Name is required";
+    if (formData.selectedPermissions.length === 0) {
+      toast.error("Please select at least one permission");
+      return false;
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      const payload = new FormData();
+      payload.append("name", formData.name);
+      payload.append("description", formData.description);
+      payload.append("description_text", formData.description);
+      
+      // Append permissions array
+      formData.selectedPermissions.forEach(id => {
+        payload.append("permissions[]", id);
+      });
+
+      await axios.post("/roles/add-role", payload);
+
+      toast.success("Role created successfully ✅");
+      navigate("/dashboards/role-management/roles");
+    } catch (err) {
+      console.error("Error creating role:", err);
+      toast.error(err?.response?.data?.message || "Failed to create role");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (fetching) {
+    return (
+      <Page title="Add Role">
+        <div className="flex h-[60vh] items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+          <span className="ml-3 text-gray-600">Loading Configuration...</span>
+        </div>
+      </Page>
+    );
+  }
+
+  return (
+    <Page title="Add Role">
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Add New Role</h1>
+            <p className="text-sm text-gray-500 mt-1">Configure role name, description and access permissions</p>
+          </div>
+          <Button
+            variant="flat"
+            onClick={() => navigate("/dashboards/role-management/roles")}
+            className="text-gray-600 hover:text-gray-800"
+          >
+            ← Back to Roles
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Left Column: Role Details */}
+            <div className="lg:col-span-3 space-y-6">
+              <Card className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      label="Role Name"
+                      name="name"
+                      placeholder="e.g. Sales Manager"
+                      value={formData.name}
+                      onChange={handleChange}
+                      error={errors.name}
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label="Role Description"
+                      name="description"
+                      placeholder="e.g. Access to sales reports and invoices"
+                      value={formData.description}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+              </Card>
+
+              {/* Permissions Section */}
+              <div className="space-y-6">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-white border-b pb-2">
+                  Module Permissions
+                </h3>
+                
+                {modules.map((module) => {
+                  const modulePerms = groupedPermissions[module.id] || [];
+                  if (modulePerms.length === 0) return null;
+
+                  const allSelected = modulePerms.every(p => formData.selectedPermissions.includes(p.id));
+                  const someSelected = modulePerms.some(p => formData.selectedPermissions.includes(p.id)) && !allSelected;
+
+                  return (
+                    <Card key={module.id} className="overflow-hidden border-none shadow-sm">
+                      <div className="bg-gray-50 dark:bg-dark-800 px-4 py-3 flex items-center justify-between border-b dark:border-dark-700">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`mod-all-${module.id}`}
+                            className={clsx(
+                              "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500",
+                              someSelected && "accent-blue-400"
+                            )}
+                            checked={allSelected}
+                            onChange={(e) => handleSelectAllModule(module.id, e.target.checked)}
+                          />
+                          <label htmlFor={`mod-all-${module.id}`} className="font-bold text-gray-700 dark:text-gray-200 cursor-pointer">
+                            {module.name}
+                          </label>
+                        </div>
+                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+                          {modulePerms.length} Permissions
+                        </span>
+                      </div>
+                      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {modulePerms.map((perm) => (
+                          <div key={perm.id} className="flex items-start gap-2 group">
+                            <input
+                              type="checkbox"
+                              id={`perm-${perm.id}`}
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              checked={formData.selectedPermissions.includes(perm.id)}
+                              onChange={() => handlePermissionChange(perm.id)}
+                            />
+                            <label 
+                              htmlFor={`perm-${perm.id}`} 
+                              className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer leading-tight group-hover:text-gray-900 dark:group-hover:text-white transition-colors"
+                            >
+                              {perm.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Column: Actions */}
+            <div className="lg:col-span-1">
+              <Card className="p-6 sticky top-24">
+                <Button
+                  type="submit"
+                  color="primary"
+                  className="w-full justify-center py-4 text-lg font-bold shadow-lg shadow-blue-200 dark:shadow-none mb-4"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Saving...
+                    </div>
+                  ) : (
+                    "Add Role"
+                  )}
+                </Button>
+                
+                <div className="space-y-4">
+                  <div className="pt-4 border-t dark:border-dark-700">
+                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Summary</h4>
+                    <ul className="text-xs space-y-2 text-gray-500">
+                      <li className="flex justify-between">
+                        <span>Modules:</span>
+                        <span className="font-bold text-blue-600">{modules.filter(m => groupedPermissions[m.id]?.some(p => formData.selectedPermissions.includes(p.id))).length}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>Permissions:</span>
+                        <span className="font-bold text-blue-600">{formData.selectedPermissions.length}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </form>
+      </div>
+    </Page>
+  );
+}

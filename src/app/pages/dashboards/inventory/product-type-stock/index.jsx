@@ -46,7 +46,7 @@ export default function ProductTypeStock() {
       setLoading(true);
       // Guessing endpoint based on pattern, but should be verified.
       // Common pattern: inventory/product-type-stock-list
-      const response = await axios.get("inventory/product-type-stock-list");
+      const response = await axios.get("inventory/product-type-stock");
 
       if (response.data.status && Array.isArray(response.data.data)) {
         setStockData(response.data.data);
@@ -80,7 +80,13 @@ export default function ProductTypeStock() {
     {}
   );
 
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 25,
+  });
+
   const [autoResetPageIndex] = useSkipper();
+
 
   const table = useReactTable({
     data: stockData,
@@ -91,7 +97,11 @@ export default function ProductTypeStock() {
       columnVisibility,
       columnPinning,
       tableSettings,
+      pagination,
     },
+    onPaginationChange: setPagination,
+
+
     meta: {
       setTableSettings,
     },
@@ -149,7 +159,18 @@ export default function ProductTypeStock() {
                 : "px-(--margin-x)"
             )}
           >
+            <div className="flex items-center justify-between pb-3">
+              <div className="text-sm text-gray-600 dark:text-dark-300">
+                Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
+                {Math.min(
+                  (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                  table.getFilteredRowModel().rows.length
+                )}{" "}
+                of {table.getFilteredRowModel().rows.length} entries
+              </div>
+            </div>
             <Card
+
               className={clsx(
                 "relative flex grow flex-col",
                 tableSettings.enableFullScreen && "overflow-hidden"

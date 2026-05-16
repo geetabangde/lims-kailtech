@@ -73,28 +73,40 @@ export function RowActions({ row }) {
 
   return (
     <>
-      <div className="flex justify-center space-x-1.5 ">
-        <div className="flex items-center justify-center gap-2">
-          <button
-            id="approve"
-            data-decision="approve"
-            data-id={row.original.id}
-            onClick={handleApprove}
-            className="inline-flex items-center justify-center rounded-md bg-green-50 px-4 py-1.5 text-xs font-bold text-green-700 transition hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 min-w-[60px]"
-          >
-            <span>Approve</span>
-          </button>
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        {/* ✅ View Details - Always Purple if PO exists */}
+        <button
+          onClick={() => navigate(`/dashboards/inventory/purchase-order/view-full-purchase-order?hakuna=${id}`)}
+          className="inline-flex items-center justify-center rounded-md bg-purple-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-purple-700 min-w-[90px]"
+        >
+          View Details
+        </button>
 
-          <button
-            id="reject"
-            data-decision="reject"
-            data-id={row.original.id}
-            onClick={openModal}
-            className="inline-flex items-center justify-center rounded-md bg-red-50 px-4 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 min-w-[60px]"
-          >
-            <span>Reject</span>
-          </button>
-        </div>
+        {/* ✅ View MRN - Green button from screenshot */}
+        <button
+          onClick={() => navigate(`/dashboards/inventory/purchase-order/mrn-challan?hakuna=${id}`)}
+          className="inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-green-700 min-w-[80px]"
+        >
+          View MRN
+        </button>
+
+        {/* ✅ Approve/Reject if pending (Status 0 or similar) */}
+        {row.original.status === 0 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleApprove}
+              className="inline-flex items-center justify-center rounded-md bg-green-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-green-600 min-w-[70px]"
+            >
+              Approve
+            </button>
+            <button
+              onClick={openModal}
+              className="inline-flex items-center justify-center rounded-md bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-600 min-w-[70px]"
+            >
+              Reject
+            </button>
+          </div>
+        )}
       </div>
 
       <ConfirmModal

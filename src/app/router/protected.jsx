@@ -4385,6 +4385,49 @@ const protectedRoutes = {
                         ).default,
                       }),
                     },
+                    {
+                      path: "edit-indent",
+                      lazy: async () => ({
+                        Component: (
+                          await import(
+                            "app/pages/dashboards/inventory/purchase-requisition/EditIndent"
+                          )
+                        ).default,
+                      }),
+                    },
+
+                    {
+                      path: "view-full-indent",
+                      lazy: async () => ({
+                        Component: (
+                          await import(
+                            "app/pages/dashboards/inventory/purchase-requisition/ViewFullIndent"
+                          )
+                        ).default,
+                      }),
+                    },
+                    {
+                      path: "stock-transfer-list",
+                      lazy: async () => ({
+                        Component: (
+                          await import(
+                            "app/pages/dashboards/inventory/purchase-requisition/StockTransferList"
+                          )
+                        ).default,
+                      }),
+                    },
+                    {
+                      path: "add-transfer-item",
+
+                      lazy: async () => ({
+                        Component: (
+                          await import(
+                            "app/pages/dashboards/inventory/purchase-requisition/AddTransferItem"
+                          )
+                        ).default,
+                      }),
+                    },
+
                   ],
                 },
                 {

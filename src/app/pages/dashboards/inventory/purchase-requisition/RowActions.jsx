@@ -1,107 +1,123 @@
-// Import Dependencies
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import PropTypes from "prop-types";
-
-// Local Imports
-import { ConfirmModal } from "components/shared/ConfirmModal";
 import axios from "utils/axios";
 import { toast } from "sonner";
 
+// Local Imports
+import { ConfirmModal } from "components/shared/ConfirmModal";
+
 // ----------------------------------------------------------------------
 
-const confirmMessages = {
+const deleteMessages = {
   pending: {
-    description:
-      "Are you sure you want to reject this indent? Once rejected, it cannot be restored.",
+    title: "Delete Indent?",
+    description: "Are you sure you want to remove this indent? This action cannot be undone.",
+    actionText: "Yes, Delete",
   },
   success: {
-    title: "Indent Rejected",
+    title: "Indent Deleted",
+    description: "The indent has been successfully removed from the system.",
   },
 };
 
-export function RowActions({ row }) {
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [confirmRejectLoading, setConfirmRejectLoading] = useState(false);
-  const [rejectSuccess, setRejectSuccess] = useState(false);
-  const [rejectError, setRejectError] = useState(false);
+export function RowActions({ row, table }) {
+  const status = row.original.status;
+  const id = row.original.id;
+  const permissions = table.options.meta.permissions || [];
+  
+  const [showModal, setShowModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteState, setDeleteState] = useState("pending"); // pending, success, error
 
-  const closeModal = () => {
-    setRejectModalOpen(false);
-  };
-
-  const openModal = () => {
-    setRejectModalOpen(true);
-    setRejectError(false);
-    setRejectSuccess(false);
-  };
-
-  const handleApprove = useCallback(() => {
-    const id = row.original.id;
-    window.location.href = `/dashboards/inventory/purchase-requisition/edit-indent-approve?hakuna=${id}`;
-  }, [row]);
-
-  const handleReject = useCallback(async () => {
-    const id = row.original.id;
-    setConfirmRejectLoading(true);
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setDeleteState("pending");
 
     try {
-      await axios.post("/inventory/reject-indent", { id });
-      setRejectSuccess(true);
-      toast.success("Indent rejected successfully", {
-        duration: 1000,
-        icon: "",
-      });
+      // Switched to axios.delete to resolve the 405 Method Not Allowed error
+      const response = await axios.delete(`/inventory/delete-indent/${id}`);
+      
+      if (response.data.success || response.data.status) {
+        setDeleteState("success");
+        toast.success("Indent deleted successfully ✅");
+        
+        // Brief delay to show success state before closing and refreshing
+        setTimeout(() => {
+          table.options.meta.deleteRow(row);
+          setShowModal(false);
+        }, 1000);
+      } else {
+        throw new Error("Server failed to delete");
+      }
     } catch (error) {
-      console.error("Reject failed:", error);
-      setRejectError(true);
-      toast.error("Failed to reject indent", {
-        duration: 2000,
-      });
+      console.error("Delete Error:", error);
+      setDeleteState("error");
+      toast.error("Failed to delete indent ❌");
     } finally {
-      setConfirmRejectLoading(false);
+      setIsDeleting(false);
     }
-  }, [row]);
-
-  const state = rejectError ? "error" : rejectSuccess ? "success" : "pending";
+  };
 
   return (
-    <>
-      <div className="flex justify-center space-x-1.5 ">
-        <div className="flex items-center justify-center gap-2">
-          <button
-            id="approve"
-            data-decision="approve"
-            data-id={row.original.id}
-            onClick={handleApprove}
-            className="inline-flex items-center justify-center rounded-md bg-green-50 px-4 py-1.5 text-xs font-bold text-green-700 transition hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 min-w-[60px]"
-          >
-            <span>Approve</span>
-          </button>
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
+      {/* ✅ View Details */}
+      {(status == 1 || status == 2 || status == 3 || status == 4) && (
+        <Link
+          to={`/dashboards/inventory/purchase-requisition/view-full-indent?hakuna=${id}`}
+          className="inline-flex items-center justify-center rounded-md bg-purple-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-purple-700 min-w-[80px]"
+        >
+          View Details
+        </Link>
+      )}
 
-          <button
-            id="reject"
-            data-decision="reject"
-            data-id={row.original.id}
-            onClick={openModal}
-            className="inline-flex items-center justify-center rounded-md bg-red-50 px-4 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 min-w-[60px]"
-          >
-            <span>Reject</span>
-          </button>
-        </div>
-      </div>
+      {/* ✅ Delete Button - Status 1 only */}
+      {status == 1 && (
+        <button
+          onClick={() => {
+            setDeleteState("pending");
+            setShowModal(true);
+          }}
+          className="inline-flex items-center justify-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 min-w-[60px]"
+        >
+          delete
+        </button>
+      )}
 
+      {/* ✅ Transfer From Store - Status 2 + Perm 400 */}
+      {status == 2 && permissions.includes(400) && (
+        <Link
+          to={`/dashboards/inventory/purchase-requisition/add-transfer-item?hakuna=${id}`}
+          className="inline-flex items-center justify-center rounded-md bg-blue-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-600 min-w-[100px]"
+        >
+          Transfer From Store
+        </Link>
+      )}
+
+      {/* ✅ Closed Button - Status 3 */}
+      {status == 3 && (
+        <button
+          disabled
+          className="inline-flex items-center justify-center rounded-md bg-gray-500 px-3 py-1.5 text-xs font-bold text-white transition min-w-[60px]"
+        >
+          Closed
+        </button>
+      )}
+
+      {/* Standard Confirm Modal for Deletion */}
       <ConfirmModal
-        show={rejectModalOpen}
-        onClose={closeModal}
-        messages={confirmMessages}
-        onOk={handleReject}
-        confirmLoading={confirmRejectLoading}
-        state={state}
+        show={showModal}
+        onClose={() => !isDeleting && setShowModal(false)}
+        onOk={handleDelete}
+        confirmLoading={isDeleting}
+        state={deleteState}
+        messages={deleteMessages}
       />
-    </>
+    </div>
   );
 }
 
 RowActions.propTypes = {
-  row: PropTypes.object,
+  row: PropTypes.object.isRequired,
+  table: PropTypes.object.isRequired,
 };

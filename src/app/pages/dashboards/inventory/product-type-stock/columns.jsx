@@ -1,16 +1,10 @@
 // Import Dependencies
 import { createColumnHelper } from "@tanstack/react-table";
+import clsx from "clsx";
 
 const columnHelper = createColumnHelper();
 
 export const columns = [
-  // ✅ Serial Number
-  columnHelper.accessor((_row, index) => index + 1, {
-    id: "s_no",
-    header: "S No",
-    cell: (info) => info.row.index + 1,
-  }),
-
   // ✅ Category
   columnHelper.accessor("cname", {
     id: "cname",
@@ -26,24 +20,49 @@ export const columns = [
   }),
 
   // ✅ Important (Critical)
-  columnHelper.accessor("critical_label", {
+  columnHelper.accessor("critical_name", {
     id: "critical",
     header: "Important",
-    cell: (info) => info.getValue() || "N/A",
+    cell: (info) => {
+      const value = info.getValue();
+      if (value === "Yes") {
+        return (
+          <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10 dark:bg-red-400/10 dark:text-red-400 dark:ring-red-400/20">
+            Yes
+          </span>
+        );
+      }
+      return value || "No";
+    },
   }),
 
   // ✅ UOM
-  columnHelper.accessor("unit_label", {
+  columnHelper.accessor("unit_name", {
     id: "unit",
     header: "UOM",
     cell: (info) => info.getValue() || "N/A",
   }),
 
   // ✅ Quantity
-  columnHelper.accessor("quanity", {
-    id: "quanity",
+  columnHelper.accessor("quantity", {
+    id: "quantity",
     header: "Quantity",
-    cell: (info) => info.getValue() ?? 0,
+    cell: (info) => {
+      const value = parseFloat(info.getValue() || 0);
+      const min = parseFloat(info.row.original.min || 0);
+      const isCritical = value < min;
+
+      return (
+        <span
+          className={clsx(
+            "font-semibold",
+            isCritical ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-gray-300"
+          )}
+        >
+          {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+        </span>
+      );
+    },
   }),
 
   // ✅ Minimum
@@ -53,3 +72,4 @@ export const columns = [
     cell: (info) => info.getValue() ?? 0,
   }),
 ];
+

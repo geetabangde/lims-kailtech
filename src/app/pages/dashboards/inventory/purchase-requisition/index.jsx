@@ -74,7 +74,7 @@ export default function OrdersDatatableV1() {
   const fetchIndents = async () => {
     try {
       setLoading(true); // start loader
-      const response = await axios.get("inventory/indent-data");
+      const response = await axios.get("inventory/indent-list");
       
       // console.log("API response:", response.data); // debug
 
@@ -129,8 +129,10 @@ export default function OrdersDatatableV1() {
     const rowIds = rows.map((row) => row.original.id);
     setOrders((old) => old.filter((row) => !rowIds.includes(row.id)));
   },
-  setTableSettings
+  setTableSettings,
+  permissions,
 },
+
     filterFns: {
       fuzzy: fuzzyFilter,
     },

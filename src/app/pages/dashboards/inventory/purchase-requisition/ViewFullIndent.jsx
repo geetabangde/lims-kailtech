@@ -3,39 +3,28 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "utils/axios";
 import { toast } from "sonner";
+import { Edit3 } from "lucide-react";
+import dayjs from "dayjs";
+
 
 // Local Imports
 import { Page } from "components/shared/Page";
-import { Button, Input } from "components/ui";
+import { Button, Card } from "components/ui";
+import { getStoredPermissions } from "app/navigation/dashboards";
 
 // ----------------------------------------------------------------------
-// PHP: $id = $_GET["hakuna"];
-// PHP: $status = $obj->selectfield("indent", "status", "id", $id);
-// PHP: $indent = $obj->selectextrawhere("indent", "id=$id");
-// PHP: $requirement = $obj->selectextrawhere("indent_requirement", "indent_id=$id");
 
 export default function ViewFullIndent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const id = searchParams.get("hakuna"); // PHP: $_GET["hakuna"]
+  const id = searchParams.get("hakuna");
+  const permissions = getStoredPermissions();
 
   const [loading, setLoading] = useState(true);
   const [indentData, setIndentData] = useState(null);
-  const [requirements, setRequirements] = useState([]);
-  const [status, setStatus] = useState(null);
+  const [products, setProducts] = useState([]);
 
-  // PHP: Permission check for edit button
-  function usePermissions() {
-    const p = localStorage.getItem("userPermissions");
-    try {
-      return JSON.parse(p) || [];
-    } catch {
-      return p?.split(",").map(Number) || [];
-    }
-  }
-  const permissions = usePermissions();
-
-  // PHP: Fetch data
+  // Fetch data
   useEffect(() => {
     const fetchData = async () => {
       if (!id) {
@@ -46,35 +35,18 @@ export default function ViewFullIndent() {
 
       try {
         setLoading(true);
+        const response = await axios.get(`/inventory/view-approve-details/${id}`);
         
-        // Fetch indent status
-        // PHP: $status = $obj->selectfield("indent", "status", "id", $id);
-        const statusResponse = await axios.get(`/inventory/indent-status/${id}`);
-        if (statusResponse.data.status) {
-          setStatus(statusResponse.data.data);
-        }
-
-        // Fetch indent data
-        // PHP: $indent = $obj->selectextrawhere("indent", "id=$id");
-        const indentResponse = await axios.get(`/inventory/indent/${id}`);
-        if (indentResponse.data.status) {
-          setIndentData(indentResponse.data.data);
+        if (response.data.success || response.data.status) {
+          const { indent_information, product_details } = response.data.data;
+          setIndentData(indent_information);
+          setProducts(product_details || []);
         } else {
-          toast.error("Failed to fetch indent data");
-          return;
-        }
-
-        // Fetch requirements data
-        // PHP: $requirement = $obj->selectextrawhere("indent_requirement", "indent_id=$id");
-        const requirementsResponse = await axios.get(`/inventory/indent-requirements/${id}`);
-        if (requirementsResponse.data.status) {
-          setRequirements(requirementsResponse.data.data);
-        } else {
-          toast.error("Failed to fetch requirements data");
+          toast.error("Failed to fetch indent details");
+          navigate("/dashboards/inventory/purchase-requisition");
         }
       } catch (error) {
         console.error("Error fetching data:", error);
-        toast.error("Something went wrong while loading data");
       } finally {
         setLoading(false);
       }
@@ -83,393 +55,129 @@ export default function ViewFullIndent() {
     fetchData();
   }, [id, navigate]);
 
-  const handleBack = () => {
-    navigate("/dashboards/inventory/purchase-requisition");
-  };
-
-  const handleEdit = () => {
-    navigate(`/dashboards/inventory/purchase-requisition/edit-indent?hakuna=${id}`);
-  };
-
-  // PHP: Check if edit button should be shown
-  const canEdit = permissions.includes(196) && status === "1";
-
   if (loading) {
     return (
       <Page title="View Requisition">
         <div className="flex h-[60vh] items-center justify-center text-gray-600">
-          <svg className="animate-spin h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 000 8v4a8 8 0 01-8-8z"></path>
+          <svg className="mr-2 h-6 w-6 animate-spin text-blue-600" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 000 8v4a8 8 0 01-8-8z" />
           </svg>
-          Loading...
+          Loading Details...
         </div>
       </Page>
     );
   }
 
-  if (!indentData) {
-    return (
-      <Page title="View Requisition">
-        <div className="flex h-[60vh] items-center justify-center text-gray-600">
-          <p>Indent not found</p>
-        </div>
-      </Page>
-    );
-  }
+  if (!indentData) return null;
+
+  const canEdit = permissions.includes(196) && indentData.status === 1;
 
   return (
-    <Page title="View Requisition">
-      <div className="row">
-        <div className="col-12 Requisition">
-          <div className="card card-default">
-            <div className="card-header">
-              <h3 className="card-title">View Requisition</h3>
-              <div className="card-tools">
-                <button 
-                  onClick={handleBack}
-                  className="btn btn-default"
-                >
-                  &lt;&lt; Back
-                </button>
-                
-                {/* PHP: if (in_array(196, $permissions)) { if ($status == "1") { ?> */}
-                {canEdit && (
-                  <button
-                    onClick={handleEdit}
-                    className="btn border border-warning"
-                  >
-                    Edit
-                  </button>
-                )}
-                
-                <button type="button" className="btn btn-tool">
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-
-            <div className="card-body">
-              {/* PHP: include "formatheaders.php"; - Format headers would be implemented here if needed */}
-              
-              {/* PHP: while ($row = $obj->fetch_assoc($indent)) */}
-              <div className="row">
-                <div className="col-md-6">
-                  <div className="form-group row">
-                    <label htmlFor="name" className="col-md-12 col-form-label">Indent Number</label>
-                    <div className="col-md-12">
-                      <Input
-                        value={indentData.indent_number || ""}
-                        readOnly
-                        className="form-control"
-                        placeholder="Primary Name"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="form-group row">
-                    <label htmlFor="phone" className="col-md-12 col-form-label">Employee Code</label>
-                    <div className="col-md-12">
-                      <Input
-                        value={indentData.employee_code || ""}
-                        disabled
-                        className="form-control"
-                        placeholder="Requisition Subject"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-md-6">
-                  <div className="form-group row">
-                    <label htmlFor="company_name" className="col-md-12 col-form-label">Name of Employee</label>
-                    <div className="col-md-12">
-                      <Input
-                        value={indentData.employee_name || ""}
-                        disabled
-                        className="form-control"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="form-group row">
-                    <label htmlFor="priority" className="col-md-12 col-form-label">Priority</label>
-                    <div className="col-md-12">
-                      <Input
-                        value={indentData.priority_name || ""}
-                        disabled
-                        className="form-control"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="form-group row">
-                    <label htmlFor="email" className="col-md-12 col-form-label">New/Existing</label>
-                    <div className="col-md-12">
-                      <Input
-                        value={indentData.indent_type_name || ""}
-                        disabled
-                        className="form-control"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="full-product-ui">
-                <div className="ml-4 mt-3">
-                  <h5>Product Details</h5>
-                </div>
-                
-                <table className="table table-striped table-responsive text-center table-bordered">
-                  <thead>
-                    <tr>
-                      <td>
-                        <h5>S.no</h5>
-                      </td>
-                      <td>
-                        <h5>Material / Services Name</h5>
-                      </td>
-                      <td>
-                        <h5>Specification</h5>
-                      </td>
-                      <td>
-                        <h5>Quantity</h5>
-                      </td>
-                      <td>
-                        <h5>Approved Quantity</h5>
-                      </td>
-                      <td>
-                        <h5>Remaining Quantity</h5>
-                      </td>
-                      <td>
-                        <h5>Remark</h5>
-                      </td>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {/* PHP: while ($row = $obj->fetch_assoc($requirement)) */}
-                    {requirements.map((row, index) => (
-                      <tr key={row.id} className="item-class" style={{ position: "relative" }}>
-                        <td>
-                          <div style={{ margin: "auto" }}>
-                            {index + 1}
-                          </div>
-                        </td>
-                        <td>
-                          <Input
-                            type="hidden"
-                            value={row.id}
-                          />
-                          {row.material_name || ""}
-                        </td>
-                        <td>
-                          {row.specification || ""}
-                        </td>
-                        <td>
-                          {row.quantity || ""}
-                        </td>
-                        <td>
-                          {row.approved_quantity || ""}
-                        </td>
-                        <td>
-                          {row.remainingqty || ""}
-                        </td>
-                        <td>
-                          {row.remark || ""}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                
-                <div className="add-more" id="more-items"></div>
-              </div>
-            </div>
-
-            <div className="card-footer">
-              <div id="resultid"></div>
-            </div>
+    <Page title={`Requisition Detail - ${indentData.indent_number}`}>
+      <div className="transition-content px-(--margin-x) pb-8">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            Requisition Details
+          </h1>
+          <div className="flex items-center gap-3">
+            {canEdit && (
+              <Button
+                onClick={() => navigate(`/dashboards/inventory/purchase-requisition/edit-indent?hakuna=${id}`)}
+                className="text-white bg-amber-500 hover:bg-amber-600 px-6 font-semibold"
+              >
+                <Edit3 className="w-4 h-4 mr-2" /> Edit
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboards/inventory/purchase-requisition")}
+              className="text-white bg-blue-600 hover:bg-blue-700 px-6 font-semibold"
+            >
+              &lt;&lt; Back to List
+            </Button>
           </div>
         </div>
+
+        <Card className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-dark-800 overflow-hidden">
+          <div className="p-6">
+            {/* Info Table */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 bg-gray-50 dark:bg-gray-800/50 p-6 rounded-xl border border-gray-100 dark:border-gray-700">
+              <div className="space-y-3">
+                <div className="flex text-sm">
+                  <span className="font-semibold w-32 text-gray-500 uppercase text-xs tracking-wider">Indent No:</span>
+                  <span className="text-gray-800 dark:text-gray-200 font-bold">{indentData.indent_number}</span>
+                </div>
+                <div className="flex text-sm">
+                  <span className="font-semibold w-32 text-gray-500 uppercase text-xs tracking-wider">Employee:</span>
+                  <span className="text-gray-800 dark:text-gray-200 font-bold">{indentData.employee_name} ({indentData.employee_code})</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex text-sm">
+                  <span className="font-semibold w-32 text-gray-500 uppercase text-xs tracking-wider">Date:</span>
+                  <span className="text-gray-800 dark:text-gray-200 font-bold">{dayjs(indentData.added_on).format("DD-MM-YYYY")}</span>
+                </div>
+                <div className="flex text-sm">
+                  <span className="font-semibold w-32 text-gray-500 uppercase text-xs tracking-wider">Priority:</span>
+                  <span className="text-gray-800 dark:text-gray-200 font-bold">{indentData.priority}</span>
+                </div>
+                <div className="flex text-sm">
+                  <span className="font-semibold w-32 text-gray-500 uppercase text-xs tracking-wider">Type:</span>
+                  <span className="text-gray-800 dark:text-gray-200 font-bold">{indentData.indent_type}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-12 text-center">#</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Material / Service Name</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Specification</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center w-24">Req. Qty</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center w-24">Appr. Qty</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center w-24">Rem. Qty</th>
+                    <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Remark</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {products.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3 text-center text-gray-500 font-medium">{index + 1}</td>
+                      <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200">{item.material_service_name}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded inline-block">
+                          {item.specification || "—"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-700 dark:text-gray-300">
+                        {item.quantity} <span className="text-[10px] text-gray-400 ml-0.5 uppercase">{item.unit_name || "No's"}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {item.approved_quantity ? (
+                          <span className="font-bold text-green-600">{item.approved_quantity}</span>
+                        ) : (
+                          <span className="text-gray-400 italic text-xs">Pending</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-gray-600 dark:text-gray-400 font-medium">{item.remainingqty !== "" ? item.remainingqty : "—"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-gray-500 text-xs italic font-medium">{item.remark || "—"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
       </div>
-
-      <style>{`
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-
-        ::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        ::-webkit-scrollbar-track {
-          box-shadow: inset 0 0 5px grey;
-          border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-          background: lightblue;
-          border-radius: 10px;
-        }
-
-        .item-class td {
-          padding: 5px;
-        }
-
-        .card-default {
-          border: 1px solid #ddd;
-          border-radius: 4px;
-        }
-
-        .card-header {
-          background-color: #f8f9fa;
-          border-bottom: 1px solid #ddd;
-          padding: 1rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .card-title {
-          margin: 0;
-          font-size: 1.25rem;
-          font-weight: 500;
-        }
-
-        .card-tools {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .card-body {
-          padding: 1rem;
-        }
-
-        .card-footer {
-          background-color: #f8f9fa;
-          border-top: 1px solid #ddd;
-          padding: 1rem;
-        }
-
-        .form-group {
-          margin-bottom: 1rem;
-        }
-
-        .col-form-label {
-          font-weight: 500;
-          margin-bottom: 0.5rem;
-        }
-
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .table-bordered th,
-        .table-bordered td {
-          border: 1px solid #ddd;
-          padding: 8px;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .text-center {
-          text-align: center;
-        }
-
-        .table-responsive {
-          overflow-x: auto;
-        }
-
-        .btn {
-          padding: 0.375rem 0.75rem;
-          border: 1px solid transparent;
-          border-radius: 0.25rem;
-          cursor: pointer;
-        }
-
-        .btn-default {
-          background-color: #f8f9fa;
-          border-color: #ddd;
-          color: #212529;
-        }
-
-        .btn-tool {
-          background-color: transparent;
-          border: none;
-          color: #6c757d;
-        }
-
-        .border-warning {
-          border-color: #ffc107 !important;
-          color: #856404;
-        }
-
-        .btn:hover {
-          opacity: 0.8;
-        }
-
-        .form-control {
-          display: block;
-          width: 100%;
-          padding: 0.375rem 0.75rem;
-          font-size: 1rem;
-          line-height: 1.5;
-          color: #495057;
-          background-color: #fff;
-          background-clip: padding-box;
-          border: 1px solid #ced4da;
-          border-radius: 0.25rem;
-          transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        }
-
-        .form-control:focus {
-          color: #495057;
-          background-color: #fff;
-          border-color: #80bdff;
-          outline: 0;
-          box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-
-        .form-control:disabled {
-          background-color: #e9ecef;
-          opacity: 1;
-        }
-
-        .row {
-          display: flex;
-          flex-wrap: wrap;
-          margin-right: -15px;
-          margin-left: -15px;
-        }
-
-        .col-md-6 {
-          flex: 0 0 50%;
-          max-width: 50%;
-          padding-right: 15px;
-          padding-left: 15px;
-        }
-
-        .col-md-12 {
-          flex: 0 0 100%;
-          max-width: 100%;
-          padding-right: 15px;
-          padding-left: 15px;
-        }
-
-        @media (max-width: 768px) {
-          .col-md-6 {
-            flex: 0 0 100%;
-            max-width: 100%;
-          }
-        }
-      `}</style>
     </Page>
   );
 }

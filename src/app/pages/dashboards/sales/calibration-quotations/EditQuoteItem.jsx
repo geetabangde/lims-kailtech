@@ -360,7 +360,7 @@ export default function EditQuoteItem() {
             <Table className="w-full">
               <thead>
                 <tr className="border-b bg-gray-50 dark:bg-dark-700">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-dark-300">Name</th>
+                  <th className="min-w-[250px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-dark-300">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-dark-300">Accreditation</th>
                   <th className="min-w-[250px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-dark-300">Description</th>
                   <th className="min-w-[80px] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-dark-300">Quantity</th>
@@ -380,8 +380,14 @@ export default function EditQuoteItem() {
                 ) : (
                   items.map((item) => (
                     <Tr key={item._key} className="border-b dark:border-dark-600 group hover:bg-gray-50/50 dark:hover:bg-dark-700/50">
-                      <Td className="px-4 py-2 font-medium text-gray-700 dark:text-dark-200">
-                        {item.name}
+                      <Td className="px-4 py-2">
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => handleItemChange(item._key, "name", e.target.value)}
+                          className={inputCls}
+                          placeholder="Instrument Name"
+                        />
                         <input type="hidden" value={item.instid} />
                       </Td>
                       <Td className="px-4 py-2 text-sm text-gray-600 dark:text-dark-400 font-bold">{item.accreditation}</Td>

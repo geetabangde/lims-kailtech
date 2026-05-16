@@ -1,22 +1,23 @@
 // Import Dependencies
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "utils/axios";
 import { toast } from "sonner";
+import { Search, Plus, Trash2 } from "lucide-react";
+import clsx from "clsx";
 
 // Local Imports
 import { Page } from "components/shared/Page";
-import { Button, Input } from "components/ui";
+import { Button, Card } from "components/ui";
+
+import { useAuthContext } from "app/contexts/auth/context";
 
 // ----------------------------------------------------------------------
-// PHP: $emp_name = $obj->selectfield("admin", "concat(firstname,' ',middlename,' ',lastname)", "id", $employeeid);
-// PHP: $emp_code = $obj->selectfield("admin", "empid", "id", $employeeid);
-// PHP: $priority = $obj->selectextrawhereupdate("priority", "id,priority_name", "status=1");
-// PHP: $indent_type = $obj->selectextrawhereupdate("indent_type", "id,name", "status=1");
 
 export default function AddIndent() {
   const navigate = useNavigate();
-  const employeeId = localStorage.getItem("userId");
+  const { user } = useAuthContext();
+  const adminId = user?.id || localStorage.getItem("userId");
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -26,106 +27,93 @@ export default function AddIndent() {
   const [employeeData, setEmployeeData] = useState({ name: "", code: "" });
   const [priorityOptions, setPriorityOptions] = useState([]);
   const [indentTypeOptions, setIndentTypeOptions] = useState([]);
+  
   const [formData, setFormData] = useState({
-    priority: "",
-    indent_type_id: ""
+    priority: "5", // Default Normal
+    indent_type_id: "2" // Default Existing
   });
 
-  // PHP: Fetch employee data and dropdown options
+  // Fetch initial data (Master Data)
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Fetch employee data
-        if (employeeId) {
-          const empResponse = await axios.get(`/admin/employee/${employeeId}`);
-          if (empResponse.data.status) {
-            const emp = empResponse.data.data;
-            setEmployeeData({
-              name: `${emp.firstname || ""} ${emp.middlename || ""} ${emp.lastname || ""}`.trim(),
-              code: emp.empid || ""
-            });
-          }
-        }
-
-        // Fetch priority options
-        // PHP: $priority = $obj->selectextrawhereupdate("priority", "id,priority_name", "status=1");
-        const priorityResponse = await axios.get("/master/priority?status=1");
-        if (priorityResponse.data.status) {
-          setPriorityOptions(priorityResponse.data.data || []);
-        }
-
-        // Fetch indent type options
-        // PHP: $indent_type = $obj->selectextrawhereupdate("indent_type", "id,name", "status=1");
-        const indentTypeResponse = await axios.get("/master/indent-type?status=1");
-        if (indentTypeResponse.data.status) {
-          setIndentTypeOptions(indentTypeResponse.data.data || []);
+        const response = await axios.get("/inventory/indent-master-data");
+        if (response.data.status) {
+          const { employee, priority, indent_type } = response.data.data;
+          setEmployeeData({
+            name: employee.employee_name || "",
+            code: employee.employee_code || ""
+          });
+          setPriorityOptions(priority || []);
+          setIndentTypeOptions(indent_type || []);
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Something went wrong while loading data");
+        console.error("Error fetching master data:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [employeeId]);
+  }, []);
 
-  // PHP: Search functionality
-  const handleSearch = async (term) => {
+  // Handle Item Search
+  const handleSearch = useCallback(async (term) => {
     setSearchTerm(term);
-    
     if (term.length < 3) {
       setSearchResults([]);
       return;
     }
 
     try {
-      // PHP: url: "search_item_for_indent.php", data: { search: request.term }
-      const response = await axios.post("/inventory/search-item-for-indent", { search: term });
+      const response = await axios.get(`/inventory/search-item-for-indent?search=${term}`);
       if (response.data.status) {
         setSearchResults(response.data.data || []);
       }
     } catch (error) {
-      console.error("Error searching items:", error);
+      console.error("Search error:", error);
     }
-  };
+  }, []);
 
-  // PHP: Add item to table
   const handleAddItem = (item) => {
-    // Check if item already added
-    // PHP: if ($(this).find("#subcategory_id").val() == a) { alert("Item Already Added"); }
-    const isAlreadyAdded = addedItems.some(addedItem => addedItem.id === item.id);
-    if (isAlreadyAdded) {
+    const exists = addedItems.some(i => i.subcategory_id === item.id);
+    if (exists) {
       toast.error("Item Already Added");
       return;
     }
 
-    setAddedItems(prev => [...prev, item]);
+    const newItem = {
+      subcategory_id: item.id,
+      name: item.name,
+      specification: "",
+      quantity: 1,
+      unit: item.unit_name || "",
+      remark: ""
+    };
+
+    setAddedItems(prev => [...prev, newItem]);
     setSearchTerm("");
     setSearchResults([]);
   };
 
-  // PHP: Remove item from table
-  const handleRemoveItem = (itemId) => {
-    setAddedItems(prev => prev.filter(item => item.id !== itemId));
+  const updateItemField = (index, field, value) => {
+    setAddedItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return newItems;
+    });
   };
 
-  // PHP: Form submission
-  // PHP: sendForm('', '', 'insert_indent.php', 'resultid', 'Requisitionadd');
+  const handleRemoveItem = (index) => {
+    setAddedItems(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // PHP: if ($.trim($("tbody#result").html()) == '') { alert("No Item is Added"); }
     if (addedItems.length === 0) {
       toast.error("No Item is Added");
-      return;
-    }
-
-    if (!formData.priority || !formData.indent_type_id) {
-      toast.error("Please fill all required fields");
       return;
     }
 
@@ -133,43 +121,40 @@ export default function AddIndent() {
 
     try {
       const payload = {
-        employee_id: employeeId,
+        admin_id: adminId,
         priority: formData.priority,
         indent_type_id: formData.indent_type_id,
-        items: addedItems.map(item => ({
-          subcategory_id: item.id,
-          specification: item.specification || "",
-          quantity: item.quantity || 1,
-          remark: item.remark || ""
-        }))
+        subcategory_id: addedItems.map(i => i.subcategory_id),
+        specification: addedItems.map(i => i.specification),
+        quantity: addedItems.map(i => i.quantity),
+        remark: addedItems.map(i => i.remark)
       };
 
-      const response = await axios.post("/inventory/insert-indent", payload);
+      const response = await axios.post("/inventory/add-new-indent", payload);
       
-      if (response.data.status) {
-        toast.success("Requisition added successfully");
+      if (response.data.success || response.data.status) {
+        toast.success("Requisition created successfully ✅");
         navigate("/dashboards/inventory/purchase-requisition");
       } else {
-        toast.error(response.data.message || "Failed to add requisition");
+        toast.error(response.data.message || "Failed to add requisition ❌");
       }
     } catch (error) {
-      console.error("Error adding requisition:", error);
-      toast.error("Something went wrong while adding requisition");
+      console.error("Submit error:", error);
+      toast.error("Something went wrong during submission");
     } finally {
       setSubmitting(false);
     }
   };
 
-
   if (loading) {
     return (
       <Page title="Add Requisition">
         <div className="flex h-[60vh] items-center justify-center text-gray-600">
-          <svg className="animate-spin h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 000 8v4a8 8 0 01-8-8z"></path>
+          <svg className="mr-2 h-6 w-6 animate-spin text-blue-600" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 000 8v4a8 8 0 01-8-8z" />
           </svg>
-          Loading...
+          Loading Master Data...
         </div>
       </Page>
     );
@@ -177,371 +162,177 @@ export default function AddIndent() {
 
   return (
     <Page title="Add Requisition">
-      <div className="row">
-        <div className="col-12">
-          <div className="card card-primary">
-            <div className="card-header">
-              <h3 className="card-title">Add Requisition</h3>
-            </div>
+      <div className="transition-content px-(--margin-x) pb-8">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            Add New Requisition
+          </h1>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/dashboards/inventory/purchase-requisition")}
+            className="text-white bg-blue-600 hover:bg-blue-700 px-6"
+          >
+            &lt;&lt; Back to List
+          </Button>
+        </div>
 
-            {/* PHP: <form data-bvalidator-validate data-bvalidator-theme="gray" id="Requisitionadd" onsubmit="event.preventDefault();sendForm('', '', 'insert_indent.php', 'resultid', 'Requisitionadd');return 0;" autocomplete="off"> */}
-            <form onSubmit={handleSubmit} autoComplete="off">
-              <div className="card-body">
-                <div className="ml-4 mt-2">
-                  <h5 style={{ paddingBottom: "8px", marginRight: "15px" }}>Requisition Information</h5>
+        <Card className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-dark-800 overflow-hidden">
+          <form onSubmit={handleSubmit}>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Employee Info */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Employee Code</label>
+                  <input value={employeeData.code} disabled className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
                 </div>
-                
-                <div className="row">
-                  <div className="form-group col-sm-6">
-                    <label htmlFor="phone" className="col-sm-12 col-form-label">Employee Code</label>
-                    <div className="col-sm-12">
-                      <Input
-                        value={employeeData.code}
-                        disabled
-                        className="form-control"
-                        placeholder=""
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group col-sm-6">
-                    <label htmlFor="company_name" className="col-sm-12 col-form-label">Name of Employee</label>
-                    <div className="col-sm-12">
-                      <Input
-                        type="hidden"
-                        value={employeeId}
-                      />
-                      <Input
-                        value={employeeData.name}
-                        disabled
-                        className="form-control"
-                        placeholder="Company or Requisition Name"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group col-sm-6">
-                    <label htmlFor="email" className="col-sm-12 col-form-label">Priority</label>
-                    <div className="col-sm-12">
-                      <select
-                        value={formData.priority}
-                        onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
-                        className="form-control"
-                        style={{ width: "100%" }}
-                        required
-                      >
-                        <option value="">Select Priority</option>
-                        {/* PHP: foreach ($priority_data as list($id, $name)) */}
-                        {priorityOptions.map(priority => (
-                          <option key={priority.id} value={priority.id}>
-                            {priority.priority_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-group col-sm-6">
-                    <label htmlFor="email" className="col-sm-12 col-form-label">New/Existing</label>
-                    <div className="col-sm-12">
-                      <select
-                        value={formData.indent_type_id}
-                        onChange={(e) => setFormData(prev => ({ ...prev, indent_type_id: e.target.value }))}
-                        className="form-control"
-                        style={{ width: "100%" }}
-                        required
-                      >
-                        <option value="">Select Type</option>
-                        {/* PHP: foreach ($indent_type_data as list($id, $name)) */}
-                        {indentTypeOptions.map(type => (
-                          <option key={type.id} value={type.id}>
-                            {type.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-group col-sm-12">
-                    <label htmlFor="phone" className="col-sm-12 col-form-label">Search</label>
-                    <div className="col-sm-12 relative">
-                      <Input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        className="form-control"
-                        placeholder="Search Any Item"
-                      />
-                      
-                      {/* Search Results Dropdown */}
-                      {searchResults.length > 0 && (
-                        <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                          {searchResults.map((item, index) => (
-                            <div
-                              key={index}
-                              onClick={() => handleAddItem(item)}
-                              className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                            >
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-sm text-gray-600">{item.specification}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Name of Employee</label>
+                  <input value={employeeData.name} disabled className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
                 </div>
 
-                <div className="full-product-ui">
-                  <div className="ml-4 mt-3">
-                    <h5>Product Details</h5>
+                {/* Priority */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Priority <span className="text-red-500">*</span></label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Priority</option>
+                    {priorityOptions.map(p => (
+                      <option key={p.id} value={p.id}>{p.priority_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Indent Type */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">New/Existing <span className="text-red-500">*</span></label>
+                  <select
+                    value={formData.indent_type_id}
+                    onChange={(e) => setFormData(prev => ({ ...prev, indent_type_id: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Type</option>
+                    {indentTypeOptions.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Item Search */}
+              <div className="space-y-1.5 relative">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Search Item <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Search by material or service name..."
+                  />
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                    {searchResults.map((item, index) => (
+                      <div
+                        key={index}
+                        onClick={() => handleAddItem(item)}
+                        className="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b last:border-0 flex justify-between items-center group transition-colors"
+                      >
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{item.name}</span>
+                        <Plus className="w-4 h-4 text-blue-500" />
+                      </div>
+                    ))}
                   </div>
-                  
-                  <table className="table table-condensed table-striped table-bordered">
-                    <thead>
+                )}
+              </div>
+
+              {/* Items Table */}
+              <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-12 text-center">S.No</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Material / Service Name</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-48">Specification</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-28 text-center">Quantity</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-24">Unit</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Remark</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {addedItems.length === 0 ? (
                       <tr>
-                        <td width="50px">
-                          <h5>S.no</h5>
-                        </td>
-                        <td>
-                          <h5>Material / Services Name</h5>
-                        </td>
-                        <td width="200px">
-                          <h5>Specification</h5>
-                        </td>
-                        <td width="180px">
-                          <h5>Quantity</h5>
-                        </td>
-                        <td width="100px">
-                          <h5>Unit</h5>
-                        </td>
-                        <td>
-                          <h5>Remark</h5>
-                        </td>
-                        <td>
-                          <h5>Close</h5>
-                        </td>
+                        <td colSpan="7" className="px-4 py-10 text-center text-gray-400 italic">No items added yet.</td>
                       </tr>
-                    </thead>
-                    <tbody id="result">
-                      {/* Added items */}
-                      {addedItems.map((item, index) => (
-                        <tr key={item.id} className="item-class">
-                          <td>
-                            <Input
-                              type="text"
-                              value={index + 1}
-                              readOnly
-                              className="form-control s_no"
+                    ) : (
+                      addedItems.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                          <td className="px-4 py-3 text-center text-gray-500 font-medium">{index + 1}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">{item.name}</td>
+                          <td className="px-4 py-3">
+                            <input
+                              value={item.specification}
+                              onChange={(e) => updateItemField(index, "specification", e.target.value)}
+                              className="w-full rounded border border-gray-200 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
                             />
                           </td>
-                          <td>
-                            <Input
-                              type="hidden"
-                              value={item.id}
-                            />
-                            <Input
-                              type="text"
-                              value={item.name}
-                              readOnly
-                              className="form-control"
-                            />
-                          </td>
-                          <td>
-                            <Input
-                              type="text"
-                              value={item.specification || ""}
-                              readOnly
-                              className="form-control"
-                            />
-                          </td>
-                          <td>
-                            <Input
+                          <td className="px-4 py-3">
+                            <input
                               type="number"
-                              defaultValue={item.quantity || 1}
                               min="1"
-                              className="form-control"
+                              value={item.quantity}
+                              onChange={(e) => updateItemField(index, "quantity", e.target.value)}
+                              className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-center font-bold text-blue-600 dark:border-gray-600 dark:bg-gray-900"
                             />
                           </td>
-                          <td>
-                            <Input
-                              type="text"
-                              value={item.unit || ""}
-                              readOnly
-                              className="form-control"
+                          <td className="px-4 py-3 text-xs text-gray-500 font-medium">{item.unit || "-"}</td>
+                          <td className="px-4 py-3">
+                            <input
+                              value={item.remark}
+                              onChange={(e) => updateItemField(index, "remark", e.target.value)}
+                              className="w-full rounded border border-gray-200 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
                             />
                           </td>
-                          <td>
-                            <textarea
-                              className="form-control"
-                              style={{ resize: "none" }}
-                              rows={1}
-                              placeholder="Add remark..."
-                            />
-                          </td>
-                          <td>
+                          <td className="px-4 py-3 text-center">
                             <button
                               type="button"
-                              onClick={() => handleRemoveItem(item.id)}
-                              className="btn btn-sm btn-danger"
+                              onClick={() => handleRemoveItem(index)}
+                              className="text-red-400 hover:text-red-600 p-1.5 transition-colors"
                             >
-                              ×
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
+            </div>
 
-              <div className="card-footer">
-                <Button 
-                  type="submit" 
-                  disabled={submitting}
-                  className="btn btn-primary"
-                >
-                  {submitting ? "Submitting..." : "Submit"}
-                </Button>
-                <div id="resultid"></div>
-              </div>
-            </form>
-          </div>
-        </div>
+            <div className="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-dark-900/50">
+              <Button 
+                type="submit" 
+                disabled={submitting}
+                className={clsx(
+                  "!bg-blue-600 !text-white rounded-lg px-10 py-2.5 text-sm font-semibold shadow-md transition hover:!bg-blue-700 active:!bg-blue-800",
+                  submitting && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {submitting ? "Submitting..." : "Submit Requisition"}
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
-
-      <style>{`
-        ::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        ::-webkit-scrollbar-track {
-          box-shadow: inset 0 0 5px grey;
-          border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-          background: lightblue;
-          border-radius: 10px;
-        }
-
-        .item-class td {
-          padding: 5px;
-        }
-
-        .card-primary {
-          border: 1px solid #007bff;
-          border-radius: 4px;
-        }
-
-        .card-header {
-          background-color: #007bff;
-          color: white;
-          border-bottom: 1px solid #007bff;
-          padding: 1rem;
-        }
-
-        .card-title {
-          margin: 0;
-          font-size: 1.25rem;
-          font-weight: 500;
-        }
-
-        .card-body {
-          padding: 1rem;
-        }
-
-        .card-footer {
-          background-color: #f8f9fa;
-          border-top: 1px solid #ddd;
-          padding: 1rem;
-        }
-
-        .form-group {
-          margin-bottom: 1rem;
-        }
-
-        .col-form-label {
-          font-weight: 500;
-          margin-bottom: 0.5rem;
-        }
-
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .table-bordered th,
-        .table-bordered td {
-          border: 1px solid #ddd;
-          padding: 8px;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .btn {
-          padding: 0.375rem 0.75rem;
-          border: 1px solid transparent;
-          border-radius: 0.25rem;
-          cursor: pointer;
-        }
-
-        .btn-primary {
-          background-color: #007bff;
-          border-color: #007bff;
-          color: white;
-        }
-
-        .btn-danger {
-          background-color: #dc3545;
-          border-color: #dc3545;
-          color: white;
-        }
-
-        .btn-sm {
-          padding: 0.25rem 0.5rem;
-          font-size: 0.875rem;
-        }
-
-        .btn:hover {
-          opacity: 0.8;
-        }
-
-        .btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .form-control {
-          display: block;
-          width: 100%;
-          padding: 0.375rem 0.75rem;
-          font-size: 1rem;
-          line-height: 1.5;
-          color: #495057;
-          background-color: #fff;
-          background-clip: padding-box;
-          border: 1px solid #ced4da;
-          border-radius: 0.25rem;
-          transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        }
-
-        .form-control:focus {
-          color: #495057;
-          background-color: #fff;
-          border-color: #80bdff;
-          outline: 0;
-          box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-
-        .form-control:disabled {
-          background-color: #e9ecef;
-          opacity: 1;
-        }
-      `}</style>
     </Page>
   );
 }

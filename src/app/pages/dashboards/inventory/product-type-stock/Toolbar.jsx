@@ -23,10 +23,10 @@ export function Toolbar({ table }) {
           isFullScreenEnabled ? "px-4 sm:px-5" : "px-(--margin-x) pt-4"
         )}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-4 mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-4">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-wide text-gray-800 dark:text-dark-50">
-              Stock Report
+              Stock
             </h2>
           </div>
 
@@ -36,7 +36,7 @@ export function Toolbar({ table }) {
               className="h-9 rounded-md px-4 text-sm font-medium"
               color="primary"
             >
-              Export Product Type / Subcategory
+              Export Product Type/ Subcategory
             </Button>
             <TableConfig table={table} />
           </div>
@@ -45,17 +45,19 @@ export function Toolbar({ table }) {
 
       <div
         className={clsx(
-          "custom-scrollbar transition-content flex justify-between space-x-4 overflow-x-auto pb-1 pt-2",
+          "custom-scrollbar transition-content flex justify-end space-x-4 overflow-x-auto pb-1 pt-2",
           isFullScreenEnabled ? "px-4 sm:px-5" : "px-(--margin-x)"
         )}
       >
-        <div className="flex shrink-0 space-x-2">
+        <div className="flex shrink-0 items-center space-x-2">
+          <span className="text-sm font-medium text-gray-600 dark:text-dark-300">Search:</span>
           <SearchInput table={table} />
         </div>
       </div>
     </div>
   );
 }
+
 
 function SearchInput({ table }) {
   return (

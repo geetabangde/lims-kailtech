@@ -1,8 +1,10 @@
 // Import Dependencies
 import { createColumnHelper } from "@tanstack/react-table";
+import dayjs from "dayjs";
 
 // Local Imports
 import { RowActions } from "./RowActions";
+import { StatusActions } from "./StatusActions";
 import {
   SelectCell,
   SelectHeader,
@@ -25,61 +27,62 @@ export const columns = [
   }),
 
   // PHP: Indent No.
-  columnHelper.accessor("indent_no", {
+  columnHelper.accessor("indent_number", {
     id: "indent_no",
     header: "Indent No.",
     cell: (info) => info.getValue(),
   }),
 
   // PHP: Raised By
-  columnHelper.accessor("raised_by", {
+  columnHelper.accessor("firstname", {
     id: "raised_by",
     header: "Raised By",
     cell: (info) => info.getValue(),
   }),
 
   // PHP: Priority
-  columnHelper.accessor("priority", {
+  columnHelper.accessor("priority_name", {
     id: "priority",
     header: "Priority",
     cell: (info) => info.getValue(),
   }),
 
   // PHP: Indent Type
-  columnHelper.accessor("indent_type", {
+  columnHelper.accessor("indentType", {
     id: "indent_type",
     header: "Indent Type",
     cell: (info) => info.getValue(),
   }),
 
   // PHP: Item Name
-  columnHelper.accessor("item_name", {
+  columnHelper.accessor("itemname", {
     id: "item_name",
     header: "Item Name",
-    cell: (info) => info.getValue(),
+    cell: (info) => {
+      const val = info.getValue() || "";
+      return (
+        <div className="whitespace-pre-line">
+          {val.split(",").join("\n")}
+        </div>
+      );
+    },
   }),
 
   // PHP: Added On
   columnHelper.accessor("added_on", {
     id: "added_on",
     header: "Added On",
-    cell: (info) => info.getValue(),
+    cell: (info) => {
+      const val = info.getValue();
+      return val ? dayjs(val).format("DD/MM/YYYY") : "N/A";
+    },
   }),
 
   // PHP: Status
   columnHelper.accessor("status", {
     id: "status",
     header: "Status",
-    cell: (info) => {
-      const status = info.getValue();
-      const statusMap = {
-        1: "Pending",
-        2: "Approved/ Transfer Pending",
-        3: "Completed",
-        91: "Rejected"
-      };
-      return statusMap[status] || status;
-    },
+    cell: StatusActions,
   }),
 
   // PHP: Action
@@ -91,3 +94,4 @@ export const columns = [
     cell: RowActions,
   }),
 ];
+

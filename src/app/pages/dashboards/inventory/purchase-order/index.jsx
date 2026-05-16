@@ -74,11 +74,11 @@ export default function OrdersDatatableV1() {
   const fetchPurchaseOrders = async () => {
     try {
       setLoading(true); // start loader
-      const response = await axios.get("inventory/purchase-order-data");
+      const response = await axios.get("inventory/purchase-order-list");
       
       // console.log("API response:", response.data); // debug
 
-      if (response.data.status && Array.isArray(response.data.data)) {
+      if ((response.data.status === true || response.data.status === "true") && Array.isArray(response.data.data)) {
         setOrders(response.data.data); // ✅ correct assignment
       } else {
         console.warn("Unexpected response structure:", response.data);
